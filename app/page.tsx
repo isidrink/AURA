@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RetellWebClient } from "retell-client-js-sdk";
-import AvatarPhoto from "./AvatarPhoto";
+import Avatar3D from "./Avatar3D";
 
 type CallState = "idle" | "connecting" | "active" | "speaking" | "error";
 type Locale = "ES" | "CA" | "EN";
@@ -106,6 +106,7 @@ const copy = {
 export default function Home() {
   const clientRef = useRef<RetellWebClient | null>(null);
   const audioLevelRef = useRef(0);
+  const audioShapeRef = useRef(0);
   const speakingRef = useRef(false);
   const [locale, setLocale] = useState<Locale>("ES");
   const [callState, setCallState] = useState<CallState>("idle");
@@ -126,6 +127,7 @@ export default function Home() {
     clientRef.current?.stopCall();
     clientRef.current = null;
     audioLevelRef.current = 0;
+    audioShapeRef.current = 0;
     speakingRef.current = false;
     setCallState("idle");
     setTopicNotice("");
@@ -172,14 +174,27 @@ export default function Home() {
       });
       client.on("audio", (audio: Float32Array) => {
         let energy = 0;
+        let zeroCrossings = 0;
         for (let index = 0; index < audio.length; index += 1) {
           energy += audio[index] * audio[index];
+          if (
+            index > 0 &&
+            ((audio[index] >= 0 && audio[index - 1] < 0) ||
+              (audio[index] < 0 && audio[index - 1] >= 0))
+          ) {
+            zeroCrossings += 1;
+          }
         }
         audioLevelRef.current = Math.sqrt(energy / Math.max(1, audio.length));
+        audioShapeRef.current = Math.min(
+          1,
+          (zeroCrossings / Math.max(1, audio.length)) * 12,
+        );
       });
       client.on("call_ended", () => {
         clientRef.current = null;
         audioLevelRef.current = 0;
+        audioShapeRef.current = 0;
         speakingRef.current = false;
         setCallState("idle");
         setNoticeKey("ready");
@@ -188,6 +203,7 @@ export default function Home() {
         client.stopCall();
         clientRef.current = null;
         audioLevelRef.current = 0;
+        audioShapeRef.current = 0;
         speakingRef.current = false;
         setCallState("error");
         setNoticeKey("connectionError");
@@ -278,10 +294,10 @@ export default function Home() {
         <div className="avatar-stage" aria-label={text.avatarLabel}>
           <div className="halo" />
           <div className="avatar-card">
-            <AvatarPhoto
+            <Avatar3D
               audioLevelRef={audioLevelRef}
+              audioShapeRef={audioShapeRef}
               speakingRef={speakingRef}
-              alt={text.avatarAlt}
             />
             <div className="live-badge">
               <span />

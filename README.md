@@ -1,6 +1,6 @@
 # AURA — Recepcionista virtual
 
-Aplicación web multilingüe para conectar una recepcionista virtual fotorealista con un
+Aplicación web multilingüe para conectar un avatar 3D humano con un
 agente de voz de RetellAI. Incluye español, catalán e inglés y sincronización
 labial basada en el audio reproducido por Retell.
 
@@ -42,6 +42,8 @@ El navegador llama a `/api/retell-call`. Esta ruta utiliza la clave privada
 únicamente en el servidor para solicitar a RetellAI un token temporal. La clave
 privada nunca se entrega al navegador.
 
-El SDK se inicia con `emitRawAudioSamples: true`. El nivel RMS del audio separa
-suavemente los labios de la fotografía mientras habla el agente y vuelve a
-cerrarlos cuando termina. La animación conserva intactos el rostro y el cuerpo.
+El SDK se inicia con `emitRawAudioSamples: true`. El nivel RMS y los cambios de
+frecuencia del audio controlan en tiempo real los morph targets ARKit del modelo:
+`jawOpen`, `mouthFunnel`, `mouthPucker`, `mouthStretch`, labios superiores e
+inferiores. También incorpora parpadeo, mirada, respiración y movimiento sutil
+de cabeza. El modelo utilizado está en `public/AURA_Avatar.glb`.
