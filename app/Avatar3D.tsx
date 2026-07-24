@@ -61,9 +61,10 @@ export default function Avatar3D({
     if (!host) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(31, 1, 0.01, 100);
-    camera.position.set(0, 1.18, 3.15);
-    camera.lookAt(0, 1.12, 0);
+    // Encuadre de medio cuerpo para que la cara y la vocalización sean visibles.
+    const camera = new THREE.PerspectiveCamera(28, 1, 0.01, 100);
+    camera.position.set(0, 1.36, 2.08);
+    camera.lookAt(0, 1.36, 0);
 
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -186,6 +187,8 @@ export default function Avatar3D({
       const height = Math.max(1, host.clientHeight);
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
+      // En móvil alejamos ligeramente la cámara para conservar los hombros.
+      camera.position.z = camera.aspect < 0.78 ? 2.42 : 2.08;
       camera.updateProjectionMatrix();
     };
     const observer = new ResizeObserver(resize);
