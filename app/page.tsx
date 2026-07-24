@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RetellWebClient } from "retell-client-js-sdk";
+import Avatar3D from "./Avatar3D";
 
 type CallState = "idle" | "connecting" | "active" | "speaking" | "error";
 type Locale = "ES" | "CA" | "EN";
@@ -104,6 +105,8 @@ const copy = {
 
 export default function Home() {
   const clientRef = useRef<RetellWebClient | null>(null);
+  const audioLevelRef = useRef(0);
+  const speakingRef = useRef(false);
   const [locale, setLocale] = useState<Locale>("ES");
   const [callState, setCallState] = useState<CallState>("idle");
   const [noticeKey, setNoticeKey] = useState<"ready" | "connecting" | "listening" | "speaking" | "finished" | "connectionError" | "microphoneError" | "setupMissing">("ready");
@@ -122,6 +125,8 @@ export default function Home() {
   const stopCall = useCallback(() => {
     clientRef.current?.stopCall();
     clientRef.current = null;
+    audioLevelRef.current = 0;
+    speakingRef.current = false;
     setCallState("idle");
     setTopicNotice("");
     setNoticeKey("finished");
@@ -155,26 +160,43 @@ export default function Home() {
         setNoticeKey("listening");
       });
       client.on("agent_start_talking", () => {
+        speakingRef.current = true;
         setCallState("speaking");
         setNoticeKey("speaking");
       });
       client.on("agent_stop_talking", () => {
+        speakingRef.current = false;
+        audioLevelRef.current = 0;
         setCallState("active");
         setNoticeKey("listening");
       });
+      client.on("audio", (audio: Float32Array) => {
+        let energy = 0;
+        for (let index = 0; index < audio.length; index += 1) {
+          energy += audio[index] * audio[index];
+        }
+        audioLevelRef.current = Math.sqrt(energy / Math.max(1, audio.length));
+      });
       client.on("call_ended", () => {
         clientRef.current = null;
+        audioLevelRef.current = 0;
+        speakingRef.current = false;
         setCallState("idle");
         setNoticeKey("ready");
       });
       client.on("error", () => {
         client.stopCall();
         clientRef.current = null;
+        audioLevelRef.current = 0;
+        speakingRef.current = false;
         setCallState("error");
         setNoticeKey("connectionError");
       });
 
-      await client.startCall({ accessToken: payload.access_token });
+      await client.startCall({
+        accessToken: payload.access_token,
+        emitRawAudioSamples: true,
+      });
     } catch (error) {
       setCallState("error");
       setNoticeKey(error instanceof Error && error.message.includes("configurar") ? "setupMissing" : "microphoneError");
@@ -256,10 +278,9 @@ export default function Home() {
         <div className="avatar-stage" aria-label={text.avatarLabel}>
           <div className="halo" />
           <div className="avatar-card">
-            <img
-              alt={text.avatarAlt}
-              className="avatar"
-              src="/aura-avatar.png"
+            <Avatar3D
+              audioLevelRef={audioLevelRef}
+              speakingRef={speakingRef}
             />
             <div className="live-badge">
               <span />

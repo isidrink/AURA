@@ -225,14 +225,26 @@ h1 em { color: var(--terracotta); font-style: normal; }
   background: linear-gradient(90deg, rgba(198,102,73,.08), transparent 35%, rgba(53,216,220,.08));
   pointer-events: none;
 }
-.avatar {
+.avatar-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center top;
-  filter: saturate(.96) contrast(1.02);
+  z-index: 1;
+}
+.avatar-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.avatar-canvas.avatar-load-error::after {
+  content: "No se pudo cargar el modelo 3D";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #aeb7c4;
+  font-size: 14px;
 }
 .live-badge {
   position: absolute;
