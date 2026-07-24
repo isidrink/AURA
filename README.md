@@ -1,5 +1,6 @@
 # AURA — Recepcionista virtual
 
+Avatar 3D con sincronización labial activado.
 Aplicación web multilingüe para conectar un avatar 3D de recepción con un
 agente de voz de RetellAI. Incluye español, catalán e inglés y sincronización
 labial basada en el audio reproducido por Retell.
