@@ -60,8 +60,17 @@ export default function Avatar3D({
     let model: THREE.Object3D | null = null;
     let headBone: THREE.Object3D | null = null;
     let chestBone: THREE.Object3D | null = null;
+    let hipsBone: THREE.Object3D | null = null;
+    let leftShoulder: THREE.Object3D | null = null;
+    let rightShoulder: THREE.Object3D | null = null;
+    let leftArm: THREE.Object3D | null = null;
+    let rightArm: THREE.Object3D | null = null;
+    let leftForeArm: THREE.Object3D | null = null;
+    let rightForeArm: THREE.Object3D | null = null;
     let leftEye: THREE.Object3D | null = null;
     let rightEye: THREE.Object3D | null = null;
+    const baseRotations = new Map<THREE.Object3D, THREE.Quaternion>();
+    const poseRotation = new THREE.Quaternion();
     let frameId = 0;
     let destroyed = false;
     let smoothedLevel = 0;
@@ -94,8 +103,30 @@ export default function Avatar3D({
           }
           if (object.name === "Head") headBone = object;
           if (object.name === "Spine2") chestBone = object;
+          if (object.name === "Hips") hipsBone = object;
+          if (object.name === "LeftShoulder") leftShoulder = object;
+          if (object.name === "RightShoulder") rightShoulder = object;
+          if (object.name === "LeftArm") leftArm = object;
+          if (object.name === "RightArm") rightArm = object;
+          if (object.name === "LeftForeArm") leftForeArm = object;
+          if (object.name === "RightForeArm") rightForeArm = object;
           if (object.name === "LeftEye") leftEye = object;
           if (object.name === "RightEye") rightEye = object;
+        });
+        [
+          headBone,
+          chestBone,
+          hipsBone,
+          leftShoulder,
+          rightShoulder,
+          leftArm,
+          rightArm,
+          leftForeArm,
+          rightForeArm,
+          leftEye,
+          rightEye,
+        ].forEach((bone) => {
+          if (bone) baseRotations.set(bone, bone.quaternion.clone());
         });
         avatarRoot.add(model);
         host.classList.add("is-loaded");
@@ -156,18 +187,45 @@ export default function Avatar3D({
       setMorph("eyeBlinkLeft", blink);
       setMorph("eyeBlinkRight", blink);
 
-      if (headBone) {
-        headBone.rotation.y = Math.sin(elapsed * 0.43) * 0.025;
-        headBone.rotation.x =
-          Math.sin(elapsed * 0.31) * 0.009 + (speaking ? Math.sin(elapsed * 2.1) * 0.006 : 0);
-      }
-      if (chestBone) chestBone.rotation.z = Math.sin(elapsed * 0.7) * 0.004;
-      if (leftEye && rightEye) {
-        const eyeX = Math.sin(elapsed * 0.28) * 0.035;
-        leftEye.rotation.y = eyeX;
-        rightEye.rotation.y = eyeX;
-      }
+      const applyPose = (
+        bone: THREE.Object3D | null,
+        x = 0,
+        y = 0,
+        z = 0,
+      ) => {
+        if (!bone) return;
+        const base = baseRotations.get(bone);
+        if (!base) return;
+        poseRotation.setFromEuler(new THREE.Euler(x, y, z, "XYZ"));
+        bone.quaternion.copy(base).multiply(poseRotation);
+      };
+
+      const breath = (Math.sin(elapsed * 1.55) + 1) * 0.5;
+      const sway = Math.sin(elapsed * 0.55);
+      const conversationalNod = speaking ? Math.sin(elapsed * 2.05) * 0.007 : 0;
+
+      // Convierte la T-pose en una postura relajada, con los brazos junto al cuerpo.
+      applyPose(leftArm, THREE.MathUtils.degToRad(78 + breath * 0.35), 0, 0);
+      applyPose(rightArm, THREE.MathUtils.degToRad(78 + breath * 0.35), 0, 0);
+      applyPose(leftForeArm, THREE.MathUtils.degToRad(10), 0, THREE.MathUtils.degToRad(2));
+      applyPose(rightForeArm, THREE.MathUtils.degToRad(10), 0, THREE.MathUtils.degToRad(-2));
+
+      applyPose(leftShoulder, breath * 0.003, 0, -breath * 0.002);
+      applyPose(rightShoulder, breath * 0.003, 0, breath * 0.002);
+      applyPose(chestBone, breath * 0.009, 0, sway * 0.0035);
+      applyPose(hipsBone, 0, 0, -sway * 0.002);
+      applyPose(
+        headBone,
+        Math.sin(elapsed * 0.31) * 0.009 + conversationalNod,
+        Math.sin(elapsed * 0.43) * 0.025,
+        -sway * 0.003,
+      );
+
+      const eyeX = Math.sin(elapsed * 0.28) * 0.035;
+      applyPose(leftEye, 0, eyeX, 0);
+      applyPose(rightEye, 0, eyeX, 0);
       avatarRoot.position.y = Math.sin(elapsed * 1.25) * 0.003;
+      avatarRoot.rotation.y = sway * 0.006;
 
       renderer.render(scene, camera);
     };
