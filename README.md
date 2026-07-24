@@ -42,12 +42,8 @@ El navegador llama a `/api/retell-call`. Esta ruta utiliza la clave privada
 únicamente en el servidor para solicitar a RetellAI un token temporal. La clave
 privada nunca se entrega al navegador.
 
-El SDK se inicia con `emitRawAudioSamples: true` y audio PCM a 24 kHz. Un
-analizador FFT clasifica en tiempo real 15 visemas: silencio, cierres labiales,
-fricativas, consonantes y cinco formas vocálicas. Los visemas controlan los
-morph targets ARKit `jawOpen`, `mouthClose`, `mouthFunnel`, `mouthPucker`,
-`mouthStretch`, `mouthPress` y los labios superiores e inferiores. La apertura
-utiliza normalización dinámica, puerta de ruido, permanencia mínima de cada
-visema y suavizado independiente de ataque y cierre. También incorpora
-parpadeo, mirada, respiración y movimiento sutil de cabeza. El modelo utilizado
-está en `public/AURA_Avatar.glb`.
+El SDK se inicia con `emitRawAudioSamples: true`. El nivel RMS y los cambios de
+frecuencia del audio controlan en tiempo real los morph targets ARKit del modelo:
+`jawOpen`, `mouthFunnel`, `mouthPucker`, `mouthStretch`, labios superiores e
+inferiores. También incorpora parpadeo, mirada, respiración y movimiento sutil
+de cabeza. El modelo utilizado está en `public/AURA_Avatar.glb`.

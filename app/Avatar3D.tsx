@@ -4,20 +4,9 @@ import { useEffect, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-type Viseme =
-  | "sil" | "PP" | "FF" | "TH" | "DD" | "kk" | "CH" | "SS"
-  | "nn" | "RR" | "aa" | "E" | "I" | "O" | "U";
-
 type Avatar3DProps = {
   audioLevelRef: MutableRefObject<number>;
-  audioFeaturesRef: MutableRefObject<{
-    rms: number;
-    zcr: number;
-    low: number;
-    mid: number;
-    high: number;
-    viseme: Viseme;
-  }>;
+  audioShapeRef: MutableRefObject<number>;
   speakingRef: MutableRefObject<boolean>;
 };
 
@@ -26,30 +15,9 @@ type MorphMesh = THREE.SkinnedMesh & {
   morphTargetInfluences?: number[];
 };
 
-const VISEME_POSES: Record<Viseme, {
-  jaw: number; funnel: number; pucker: number; stretch: number;
-  upper: number; lower: number; press: number; close: number;
-}> = {
-  sil: { jaw: 0, funnel: 0, pucker: 0, stretch: 0, upper: 0, lower: 0, press: 0, close: 0 },
-  PP: { jaw: .02, funnel: 0, pucker: .08, stretch: 0, upper: 0, lower: 0, press: .52, close: .72 },
-  FF: { jaw: .13, funnel: 0, pucker: 0, stretch: .12, upper: .06, lower: .1, press: .2, close: .08 },
-  TH: { jaw: .2, funnel: .04, pucker: 0, stretch: .08, upper: .08, lower: .16, press: 0, close: 0 },
-  DD: { jaw: .23, funnel: 0, pucker: 0, stretch: .1, upper: .05, lower: .08, press: .08, close: 0 },
-  kk: { jaw: .31, funnel: .02, pucker: 0, stretch: .08, upper: 0, lower: .12, press: 0, close: 0 },
-  CH: { jaw: .25, funnel: .14, pucker: .12, stretch: .06, upper: 0, lower: .1, press: .06, close: 0 },
-  SS: { jaw: .12, funnel: 0, pucker: 0, stretch: .3, upper: .08, lower: .04, press: .1, close: .04 },
-  nn: { jaw: .17, funnel: 0, pucker: 0, stretch: .08, upper: .03, lower: .04, press: .08, close: 0 },
-  RR: { jaw: .29, funnel: .1, pucker: .06, stretch: .05, upper: 0, lower: .1, press: 0, close: 0 },
-  aa: { jaw: .82, funnel: .05, pucker: 0, stretch: .08, upper: .08, lower: .27, press: 0, close: 0 },
-  E: { jaw: .39, funnel: 0, pucker: 0, stretch: .45, upper: .14, lower: .1, press: 0, close: 0 },
-  I: { jaw: .25, funnel: 0, pucker: 0, stretch: .58, upper: .18, lower: .06, press: 0, close: 0 },
-  O: { jaw: .48, funnel: .62, pucker: .22, stretch: 0, upper: 0, lower: .16, press: 0, close: 0 },
-  U: { jaw: .29, funnel: .34, pucker: .68, stretch: 0, upper: 0, lower: .08, press: 0, close: 0 },
-};
-
 export default function Avatar3D({
   audioLevelRef,
-  audioFeaturesRef,
+  audioShapeRef,
   speakingRef,
 }: Avatar3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -106,18 +74,6 @@ export default function Avatar3D({
     let frameId = 0;
     let destroyed = false;
     let smoothedLevel = 0;
-    let noiseFloor = 0.004;
-    let observedPeak = 0.055;
-    const mouthValues = {
-      jaw: 0,
-      funnel: 0,
-      pucker: 0,
-      stretch: 0,
-      upper: 0,
-      lower: 0,
-      press: 0,
-      close: 0,
-    };
     let nextBlink = 2.5;
     const clock = new THREE.Clock();
 
@@ -194,73 +150,31 @@ export default function Avatar3D({
       frameId = requestAnimationFrame(render);
       const elapsed = clock.getElapsedTime();
       const speaking = speakingRef.current;
-      const features = audioFeaturesRef.current;
-      const rms = audioLevelRef.current;
-
-      if (speaking) {
-        observedPeak = Math.max(rms, observedPeak * 0.997);
-        if (rms < observedPeak * 0.18) {
-          noiseFloor = THREE.MathUtils.lerp(noiseFloor, rms, 0.025);
-        }
-      }
-
-      const normalizedLevel = speaking
-        ? THREE.MathUtils.clamp(
-            (rms - noiseFloor * 1.2) /
-              Math.max(0.012, observedPeak * 0.82 - noiseFloor),
-            0,
-            1,
-          )
+      const requestedLevel = speaking
+        ? THREE.MathUtils.clamp(audioLevelRef.current * 10.5, 0, 1)
         : 0;
-      const requestedLevel =
-        normalizedLevel < 0.055
-          ? 0
-          : THREE.MathUtils.smoothstep(normalizedLevel, 0.055, 0.92);
       smoothedLevel = THREE.MathUtils.lerp(
         smoothedLevel,
         requestedLevel,
-        requestedLevel > smoothedLevel ? 0.58 : 0.32,
+        requestedLevel > smoothedLevel ? 0.48 : 0.24,
       );
 
-      const pose = VISEME_POSES[features.viseme] ?? VISEME_POSES.sil;
-      const articulation =
-        features.viseme === "sil" ? 0 : 0.48 + smoothedLevel * 0.62;
-      const targets = {
-        jaw: pose.jaw * articulation,
-        funnel: pose.funnel * articulation,
-        pucker: pose.pucker * articulation,
-        stretch: pose.stretch * articulation,
-        upper: pose.upper * articulation,
-        lower: pose.lower * articulation,
-        press: pose.press * articulation,
-        close: pose.close * articulation,
-      };
-      const smoothMouth = (key: keyof typeof mouthValues, target: number) => {
-        const current = mouthValues[key];
-        const factor = target > current ? 0.68 : 0.46;
-        mouthValues[key] = THREE.MathUtils.lerp(current, target, factor);
-      };
-      smoothMouth("jaw", targets.jaw);
-      smoothMouth("funnel", targets.funnel);
-      smoothMouth("pucker", targets.pucker);
-      smoothMouth("stretch", targets.stretch);
-      smoothMouth("upper", targets.upper);
-      smoothMouth("lower", targets.lower);
-      smoothMouth("press", targets.press);
-      smoothMouth("close", targets.close);
+      const tone = audioShapeRef.current;
+      const syllable = 0.72 + Math.sin(elapsed * 17.2) * 0.18;
+      const open = smoothedLevel * syllable;
+      const rounded = open * THREE.MathUtils.clamp(1 - tone * 1.7, 0, 1);
+      const stretched = open * THREE.MathUtils.clamp((tone - 0.3) * 1.8, 0, 1);
 
-      setMorph("jawOpen", mouthValues.jaw);
-      setMorph("mouthFunnel", mouthValues.funnel);
-      setMorph("mouthPucker", mouthValues.pucker);
-      setMorph("mouthStretchLeft", mouthValues.stretch);
-      setMorph("mouthStretchRight", mouthValues.stretch);
-      setMorph("mouthUpperUpLeft", mouthValues.upper);
-      setMorph("mouthUpperUpRight", mouthValues.upper);
-      setMorph("mouthLowerDownLeft", mouthValues.lower);
-      setMorph("mouthLowerDownRight", mouthValues.lower);
-      setMorph("mouthPressLeft", mouthValues.press);
-      setMorph("mouthPressRight", mouthValues.press);
-      setMorph("mouthClose", mouthValues.close);
+      setMorph("jawOpen", open * 0.92);
+      setMorph("mouthFunnel", rounded * 0.52);
+      setMorph("mouthPucker", rounded * 0.25);
+      setMorph("mouthStretchLeft", stretched * 0.3);
+      setMorph("mouthStretchRight", stretched * 0.3);
+      setMorph("mouthUpperUpLeft", stretched * 0.18);
+      setMorph("mouthUpperUpRight", stretched * 0.18);
+      setMorph("mouthLowerDownLeft", open * 0.23);
+      setMorph("mouthLowerDownRight", open * 0.23);
+      setMorph("mouthClose", speaking ? Math.max(0, 0.15 - open) : 0);
       setMorph("mouthSmileLeft", speaking ? 0.05 : 0.14);
       setMorph("mouthSmileRight", speaking ? 0.05 : 0.14);
 
@@ -334,7 +248,7 @@ export default function Avatar3D({
         materials.forEach((material) => material.dispose());
       });
     };
-  }, [audioFeaturesRef, audioLevelRef, speakingRef]);
+  }, [audioLevelRef, audioShapeRef, speakingRef]);
 
   return (
     <div
