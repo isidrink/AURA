@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RetellWebClient } from "retell-client-js-sdk";
-import Avatar3D from "./Avatar3D";
+import AvatarPhoto from "./AvatarPhoto";
 
 type CallState = "idle" | "connecting" | "active" | "speaking" | "error";
 type Locale = "ES" | "CA" | "EN";
@@ -278,9 +278,10 @@ export default function Home() {
         <div className="avatar-stage" aria-label={text.avatarLabel}>
           <div className="halo" />
           <div className="avatar-card">
-            <Avatar3D
+            <AvatarPhoto
               audioLevelRef={audioLevelRef}
               speakingRef={speakingRef}
+              alt={text.avatarAlt}
             />
             <div className="live-badge">
               <span />

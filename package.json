@@ -15,20 +15,18 @@
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "retell-client-js-sdk": "^2.0.8",
-    "three": "^0.179.1"
+    "retell-client-js-sdk": "^2.0.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/three": "^0.179.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3"
   },
   "type": "module",
-  "displayName": "Recepcionista Virtual 3D"
+  "displayName": "AURA Recepcionista Virtual"
 }
