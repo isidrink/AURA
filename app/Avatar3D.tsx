@@ -148,10 +148,14 @@ export default function Avatar3D({
         model.traverse((object) => {
           const mesh = object as MorphMesh;
           if (characterStyle === "animated" && mesh.isMesh) {
-            const sourceMaterials = Array.isArray(mesh.material)
-              ? mesh.material
-              : [mesh.material];
-            mesh.material = sourceMaterials.map((source) => {
+            const originalMaterial = mesh.material as
+              | THREE.Material
+              | THREE.Material[];
+            const usesMaterialArray = Array.isArray(originalMaterial);
+            const sourceMaterials: THREE.Material[] = usesMaterialArray
+              ? originalMaterial
+              : [originalMaterial];
+            const animatedMaterials = sourceMaterials.map((source) => {
               const standard = source as THREE.MeshStandardMaterial;
               const toon = new THREE.MeshToonMaterial({
                 color: standard.color?.clone() ?? new THREE.Color(0xffffff),
@@ -168,7 +172,12 @@ export default function Avatar3D({
               toon.name = `${source.name || "material"}-animated`;
               return toon;
             });
-            if (!Array.isArray(mesh.material)) mesh.material = mesh.material[0];
+            // Una malla que originalmente tenía un solo material debe seguir
+            // recibiendo un solo material. Si se le asigna un array sin grupos,
+            // Three.js no emite ninguna llamada de dibujo y el avatar desaparece.
+            mesh.material = usesMaterialArray
+              ? animatedMaterials
+              : animatedMaterials[0];
           }
           if (
             mesh.isMesh &&
