@@ -6,6 +6,7 @@ import Avatar3D from "./Avatar3D";
 
 type CallState = "idle" | "connecting" | "active" | "speaking" | "error";
 type Locale = "ES" | "CA" | "EN";
+type CharacterStyle = "realistic" | "animated";
 type Viseme =
   | "sil" | "PP" | "FF" | "TH" | "DD" | "kk" | "CH" | "SS"
   | "nn" | "RR" | "aa" | "E" | "I" | "O" | "U";
@@ -112,6 +113,9 @@ const copy = {
     quickLabel: "Consultas rápidas",
     avatarLabel: "Avatar virtual Aura",
     avatarAlt: "Aura, recepcionista virtual",
+    characterLabel: "Cambiar personaje",
+    realistic: "Realista",
+    animated: "Animación 3D",
     online: "ONLINE",
     live: "EN CONVERSACIÓN",
     sectors: ["Restaurantes", "Hoteles", "Turismo"],
@@ -143,6 +147,9 @@ const copy = {
     quickLabel: "Consultes ràpides",
     avatarLabel: "Avatar virtual Aura",
     avatarAlt: "Aura, recepcionista virtual",
+    characterLabel: "Canviar personatge",
+    realistic: "Realista",
+    animated: "Animació 3D",
     online: "EN LÍNIA",
     live: "EN CONVERSA",
     sectors: ["Restaurants", "Hotels", "Turisme"],
@@ -174,6 +181,9 @@ const copy = {
     quickLabel: "Quick questions",
     avatarLabel: "Aura virtual avatar",
     avatarAlt: "Aura, virtual receptionist",
+    characterLabel: "Change character",
+    realistic: "Realistic",
+    animated: "3D animation",
     online: "ONLINE",
     live: "IN CONVERSATION",
     sectors: ["Restaurants", "Hotels", "Tourism"],
@@ -210,6 +220,7 @@ export default function Home() {
   const headAudioFrameRef = useRef(0);
   const speakingRef = useRef(false);
   const [locale, setLocale] = useState<Locale>("ES");
+  const [characterStyle, setCharacterStyle] = useState<CharacterStyle>("realistic");
   const [callState, setCallState] = useState<CallState>("idle");
   const [noticeKey, setNoticeKey] = useState<"ready" | "connecting" | "listening" | "speaking" | "finished" | "connectionError" | "microphoneError" | "setupMissing">("ready");
   const [topicNotice, setTopicNotice] = useState("");
@@ -476,12 +487,27 @@ export default function Home() {
 
         <div className="avatar-stage" aria-label={text.avatarLabel}>
           <div className="halo" />
+          <div className="character-switcher" aria-label={text.characterLabel} role="group">
+            {(["realistic", "animated"] as CharacterStyle[]).map((style) => (
+              <button
+                aria-pressed={characterStyle === style}
+                className={characterStyle === style ? "selected" : ""}
+                key={style}
+                onClick={() => setCharacterStyle(style)}
+                type="button"
+              >
+                <span aria-hidden="true">{style === "realistic" ? "◉" : "✦"}</span>
+                {text[style]}
+              </button>
+            ))}
+          </div>
           <div className="avatar-card">
             <Avatar3D
               audioLevelRef={audioLevelRef}
               audioFeaturesRef={audioFeaturesRef}
               visemeWeightsRef={visemeWeightsRef}
               speakingRef={speakingRef}
+              characterStyle={characterStyle}
             />
             <div className="live-badge">
               <span />

@@ -20,6 +20,7 @@ type Avatar3DProps = {
   }>;
   visemeWeightsRef: MutableRefObject<Record<Viseme, number>>;
   speakingRef: MutableRefObject<boolean>;
+  characterStyle: "realistic" | "animated";
 };
 
 type MorphMesh = THREE.SkinnedMesh & {
@@ -53,6 +54,7 @@ export default function Avatar3D({
   audioFeaturesRef,
   visemeWeightsRef,
   speakingRef,
+  characterStyle,
 }: Avatar3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -74,10 +76,14 @@ export default function Avatar3D({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = characterStyle === "animated" ? 1.25 : 1.1;
     host.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(0xfff1e6, 0x17243a, 2.6));
+    scene.add(new THREE.HemisphereLight(
+      characterStyle === "animated" ? 0xfff4df : 0xfff1e6,
+      characterStyle === "animated" ? 0x29395f : 0x17243a,
+      characterStyle === "animated" ? 3.1 : 2.6,
+    ));
     const key = new THREE.DirectionalLight(0xffdfcf, 4.2);
     key.position.set(-2.5, 4, 3.5);
     scene.add(key);
@@ -141,6 +147,29 @@ export default function Avatar3D({
         model = gltf.scene;
         model.traverse((object) => {
           const mesh = object as MorphMesh;
+          if (characterStyle === "animated" && mesh.isMesh) {
+            const sourceMaterials = Array.isArray(mesh.material)
+              ? mesh.material
+              : [mesh.material];
+            mesh.material = sourceMaterials.map((source) => {
+              const standard = source as THREE.MeshStandardMaterial;
+              const toon = new THREE.MeshToonMaterial({
+                color: standard.color?.clone() ?? new THREE.Color(0xffffff),
+                map: standard.map ?? null,
+                normalMap: standard.normalMap ?? null,
+                transparent: standard.transparent,
+                opacity: standard.opacity,
+                side: standard.side,
+                alphaTest: standard.alphaTest,
+                skinning: true,
+                morphTargets: true,
+              } as THREE.MeshToonMaterialParameters);
+              toon.color.offsetHSL(0, 0.1, 0.035);
+              toon.name = `${source.name || "material"}-animated`;
+              return toon;
+            });
+            if (!Array.isArray(mesh.material)) mesh.material = mesh.material[0];
+          }
           if (
             mesh.isMesh &&
             mesh.morphTargetDictionary &&
@@ -175,6 +204,9 @@ export default function Avatar3D({
         ].forEach((bone) => {
           if (bone) baseRotations.set(bone, bone.quaternion.clone());
         });
+        if (characterStyle === "animated" && headBone) {
+          headBone.scale.multiplyScalar(1.075);
+        }
         avatarRoot.add(model);
         host.classList.add("is-loaded");
       },
@@ -467,14 +499,14 @@ export default function Avatar3D({
         materials.forEach((material) => material.dispose());
       });
     };
-  }, [audioFeaturesRef, audioLevelRef, speakingRef, visemeWeightsRef]);
+  }, [audioFeaturesRef, audioLevelRef, characterStyle, speakingRef, visemeWeightsRef]);
 
   return (
     <div
       ref={hostRef}
       className="avatar-canvas"
       role="img"
-      aria-label="Avatar 3D animado de Aura"
+      aria-label={characterStyle === "animated" ? "Avatar de animación 3D de Aura" : "Avatar 3D realista de Aura"}
     >
       <span className="avatar-loading">Cargando AURA…</span>
     </div>
