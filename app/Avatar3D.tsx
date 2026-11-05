@@ -65,7 +65,7 @@ export default function Avatar3D({
     const scene = new THREE.Scene();
     // Encuadre de medio cuerpo para que la cara y la vocalización sean visibles.
     const camera = new THREE.PerspectiveCamera(28, 1, 0.01, 100);
-    camera.position.set(0, 1.36, 2.08);
+    camera.position.set(0, 1.36, characterStyle === "animated" ? 2.55 : 2.08);
     camera.lookAt(0, 1.36, 0);
 
     const renderer = new THREE.WebGLRenderer({
@@ -110,6 +110,10 @@ export default function Avatar3D({
     let rightForeArm: THREE.Object3D | null = null;
     let leftEye: THREE.Object3D | null = null;
     let rightEye: THREE.Object3D | null = null;
+    let caricatureJaw: THREE.Object3D | null = null;
+    let caricatureJawClosed: THREE.Quaternion | null = null;
+    let caricatureJawOpen: THREE.Quaternion | null = null;
+    let animationMixer: THREE.AnimationMixer | null = null;
     const baseRotations = new Map<THREE.Object3D, THREE.Quaternion>();
     const poseRotation = new THREE.Quaternion();
     let frameId = 0;
@@ -141,7 +145,9 @@ export default function Avatar3D({
 
     const loader = new GLTFLoader();
     loader.load(
-      "/AURA_Avatar.glb",
+      characterStyle === "animated"
+        ? "/AURA_Caricature.glb"
+        : "/AURA_Avatar.glb",
       (gltf) => {
         if (destroyed) return;
         model = gltf.scene;
@@ -197,6 +203,7 @@ export default function Avatar3D({
           if (object.name === "RightForeArm") rightForeArm = object;
           if (object.name === "LeftEye") leftEye = object;
           if (object.name === "RightEye") rightEye = object;
+          if (object.name === "Jaw1_02") caricatureJaw = object;
         });
         [
           headBone,
@@ -213,8 +220,69 @@ export default function Avatar3D({
         ].forEach((bone) => {
           if (bone) baseRotations.set(bone, bone.quaternion.clone());
         });
-        if (characterStyle === "animated" && headBone) {
-          headBone.scale.multiplyScalar(1.075);
+        if (caricatureJaw) {
+          caricatureJawClosed = caricatureJaw.quaternion.clone();
+          caricatureJawOpen = caricatureJawClosed.clone();
+
+          const jawTrack = gltf.animations
+            .flatMap((clip) => clip.tracks)
+            .find(
+              (track) =>
+                track.name.includes("Jaw1_02") &&
+                track.name.endsWith(".quaternion"),
+            );
+          if (jawTrack) {
+            let greatestAngle = 0;
+            for (let index = 0; index < jawTrack.values.length; index += 4) {
+              const candidate = new THREE.Quaternion(
+                jawTrack.values[index],
+                jawTrack.values[index + 1],
+                jawTrack.values[index + 2],
+                jawTrack.values[index + 3],
+              ).normalize();
+              const angle = caricatureJawClosed.angleTo(candidate);
+              if (angle > greatestAngle) {
+                greatestAngle = angle;
+                caricatureJawOpen.copy(candidate);
+              }
+            }
+          }
+        }
+
+        if (characterStyle === "animated") {
+          // El modelo caricaturizado trabaja en una escala y orientación muy
+          // distintas. Lo normalizamos para encuadrarlo como busto sin depender
+          // de las unidades originales del archivo.
+          model.updateMatrixWorld(true);
+          let bounds = new THREE.Box3().setFromObject(model);
+          const originalSize = bounds.getSize(new THREE.Vector3());
+          const scale = 1.14 / Math.max(0.001, originalSize.y);
+          model.scale.multiplyScalar(scale);
+          model.updateMatrixWorld(true);
+          bounds = new THREE.Box3().setFromObject(model);
+          const center = bounds.getCenter(new THREE.Vector3());
+          model.position.x -= center.x;
+          model.position.y += 1.36 - center.y;
+          model.position.z -= center.z;
+
+          // Usamos la animación original para cabeza, cuello y párpados, pero
+          // retiramos sus pistas de mandíbula: la boca queda gobernada por el
+          // audio real de Retell y no por una animación prefijada.
+          const sourceClip = gltf.animations[0];
+          if (sourceClip) {
+            const idleTracks = sourceClip.tracks
+              .filter((track) => !track.name.includes("Jaw1_02") && !track.name.includes("Jaw2_03"))
+              .map((track) => track.clone());
+            const idleClip = new THREE.AnimationClip(
+              "AURA_Caricature_Idle",
+              sourceClip.duration,
+              idleTracks,
+            );
+            animationMixer = new THREE.AnimationMixer(model);
+            const action = animationMixer.clipAction(idleClip);
+            action.setLoop(THREE.LoopRepeat, Infinity);
+            action.play();
+          }
         }
         avatarRoot.add(model);
         host.classList.add("is-loaded");
@@ -229,7 +297,9 @@ export default function Avatar3D({
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       // En móvil alejamos ligeramente la cámara para conservar los hombros.
-      camera.position.z = camera.aspect < 0.78 ? 2.42 : 2.08;
+      camera.position.z = characterStyle === "animated"
+        ? camera.aspect < 0.78 ? 2.9 : 2.55
+        : camera.aspect < 0.78 ? 2.42 : 2.08;
       camera.updateProjectionMatrix();
     };
     const observer = new ResizeObserver(resize);
@@ -238,7 +308,9 @@ export default function Avatar3D({
 
     const render = () => {
       frameId = requestAnimationFrame(render);
-      const elapsed = clock.getElapsedTime();
+      const delta = clock.getDelta();
+      const elapsed = clock.elapsedTime;
+      animationMixer?.update(delta);
       const speaking = speakingRef.current;
       const features = audioFeaturesRef.current;
       const rms = audioLevelRef.current;
@@ -438,6 +510,19 @@ export default function Avatar3D({
       setMorph("mouthSmileLeft", speaking ? vowelSmile : 0.14);
       setMorph("mouthSmileRight", speaking ? vowelSmile : 0.14);
 
+      if (caricatureJaw && caricatureJawClosed && caricatureJawOpen) {
+        const jawAmount = THREE.MathUtils.clamp(
+          mouthValues.jaw * 1.7 + smoothedLevel * 0.22,
+          0,
+          1,
+        );
+        caricatureJaw.quaternion.slerpQuaternions(
+          caricatureJawClosed,
+          caricatureJawOpen,
+          jawAmount,
+        );
+      }
+
       if (elapsed > nextBlink) nextBlink = elapsed + 3.2 + Math.random() * 2.4;
       const blinkDistance = nextBlink - elapsed;
       const blink =
@@ -496,6 +581,7 @@ export default function Avatar3D({
       cancelAnimationFrame(frameId);
       observer.disconnect();
       renderer.dispose();
+      animationMixer?.stopAllAction();
       renderer.domElement.remove();
       model?.traverse((object) => {
         const mesh = object as THREE.Mesh;
@@ -517,7 +603,9 @@ export default function Avatar3D({
       role="img"
       aria-label={characterStyle === "animated" ? "Avatar de animación 3D de Aura" : "Avatar 3D realista de Aura"}
     >
-      <span className="avatar-loading">Cargando AURA…</span>
+      <span className="avatar-loading">
+        {characterStyle === "animated" ? "Cargando caricatura…" : "Cargando AURA…"}
+      </span>
     </div>
   );
 }
